@@ -9,13 +9,18 @@ import (
 	"strings"
 )
 
-func ReadReports(fileName string) [][]int {
+const (
+    MinGap = 1
+    MaxGap = 3
+)
+
+func ReadReports(fileName string) ([][]int, error)  {
 	// Open the file
 	file, err := os.Open(fileName)
 	if err != nil {
-		fmt.Printf("Error opening file: %v\n", err)
-		return nil
+		return nil, err
 	}
+	defer file.Close()
 	
 	// Slice to store reports/levels
 	var reports [][]int
@@ -36,19 +41,23 @@ func ReadReports(fileName string) [][]int {
 			if err == nil {
 				this_report = append(this_report, level)
 			} else {
-				fmt.Printf("Error converting values: %v\n", err)
+				return nil, err
 			}
 		}
 
 		// Add to reports
 		reports = append(reports, this_report)
 	}
+	// Check for scanning errors
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
 
-	return reports
+	return reports, nil
 }
 
 
-func isThisReportSafe(report []int) bool {
+func isSafe(report []int) bool {
 	// Safety conditions to check
 	var isNotAsc, isNotDesc, gapIsNotOK = false, false, false
 
@@ -72,27 +81,51 @@ func isThisReportSafe(report []int) bool {
 	return !((isNotAsc && isNotDesc) || gapIsNotOK)
 }
 
+func isAlmostSafe(report []int) bool {
+	// Remove one level at a time and check safety
+	for i:=0; i<len(report); i++ {
 
-func ComputeSafetyAndAddUp(reports [][]int) int {
-	var numberSafeReports = 0
+		newReport := make([]int, 0)
+		newReport = append(newReport, report[:i]...)
+		newReport = append(newReport, report[i+1:]...)
 
-	for i:=0; i<len(reports); i++ {
-		if isThisReportSafe(reports[i]) {
-			numberSafeReports += 1
+		if isSafe(newReport) {
+			return true
 		}
 	}
+	return false
+}
 
-	return numberSafeReports
+
+func CountSafety(reports [][]int) (int, int) {
+	var numberSafeReports, numberAlmostSafeReports = 0, 0
+
+	for i:=0; i<len(reports); i++ {
+		if isSafe(reports[i]) {
+			numberSafeReports++
+        	numberAlmostSafeReports++
+		} else if isAlmostSafe(reports[i]) {
+			numberAlmostSafeReports++
+		}
+		
+	}
+
+	return numberSafeReports, numberAlmostSafeReports
 }
 
 func main() {
 	// Read the file name from command-line arguments & read input file
 	fileName := os.Args[1]
-	reports:= ReadReports(fileName)
+	reports, err:= ReadReports(fileName)
+	if err != nil {
+		fmt.Printf("Error reading reports: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Calculate safety & add up
-	numberSafeReports := ComputeSafetyAndAddUp(reports)
+	numberSafeReports, numberAlmostSafeReports := CountSafety(reports)
 
 	// Print result
 	fmt.Println("Number of safe reports?:", numberSafeReports)
+	fmt.Println("Number of almost safe reports?:", numberAlmostSafeReports)
 }
